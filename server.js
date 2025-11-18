@@ -1,28 +1,64 @@
+const express = require("express");
 const http = require("http");
-const WebSocket = require("ws");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const app = express();
+app.use(cors());
+app.get("/", (req, res) => {
+    res.send("Servidor Batalla Naval funcionando ✔️");
+});
 
-wss.on("connection", (ws) => {
-  console.log("Jugador conectado");
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
-  ws.on("message", (message) => {
-    console.log("Mensaje recibido:", message);
-    // Reenviar a todos los jugadores
-    wss.clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
+let rooms = {};
+
+io.on("connection", (socket) => {
+    console.log("Nuevo jugador conectado:", socket.id);
+
+    socket.on("joinRoom", (roomId) => {
+        socket.join(roomId);
+
+        if (!rooms[roomId]) {
+            rooms[roomId] = { players: [] };
+        }
+
+        rooms[roomId].players.push(socket.id);
+
+        io.to(roomId).emit("playersUpdate", rooms[roomId].players);
     });
-  });
 
-  ws.on("close", () => {
-    console.log("Jugador desconectado");
-  });
+    socket.on("attack", ({ roomId, x, y }) => {
+        socket.to(roomId).emit("enemyAttack", { x, y });
+    });
+
+    socket.on("hit", (roomId) => {
+        socket.to(roomId).emit("hitConfirm");
+    });
+
+    socket.on("miss", (roomId) => {
+        socket.to(roomId).emit("missConfirm");
+    });
+
+    socket.on("disconnect", () => {
+        for (const roomId in rooms) {
+            rooms[roomId].players = rooms[roomId].players.filter(id => id !== socket.id);
+            io.to(roomId).emit("playersUpdate", rooms[roomId].players);
+        }
+        console.log("Jugador desconectado:", socket.id);
+    });
 });
 
-const port = process.env.PORT || 3000;
-server.listen(port, () => {
-  console.log("Servidor WebSocket escuchando en puerto " + port);
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+    console.log("Servidor WebSocket escuchando en puerto", PORT);
 });
+
+
+
