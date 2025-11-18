@@ -5,9 +5,11 @@
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
-    "socket.io": "^4.7.5"
+    "ws": "^8.18.0"
   }
 }
+
+
 
 
 
